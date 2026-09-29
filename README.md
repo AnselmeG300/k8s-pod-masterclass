@@ -1,40 +1,51 @@
-# Mini-labs : les elements du Pod sur l'app fil rouge
+# Lancer la demo sur Killercoda
 
-Chaque fichier reprend une notion : definition courte, commande de
-diagnostic cle, mini-lab reproductible, et ce qu'on observe.
+Le playground Kubernetes de Killercoda donne un cluster kubeadm de deux
+noeuds, pour une session de 60 minutes. C'est un bon terrain pour ces labs :
+avec deux noeuds, le scheduling, le drain, le PodDisruptionBudget et le
+hostname deviennent reellement demonstrables.
 
-Ordre conseille (celui du carrousel) :
+Deux specificites de l'environnement obligent a adapter le lancement.
 
-1. Pod Lifecycle : 01-pod-lifecycle.md
-2. Pod Conditions : 02-pod-conditions.md
-3. Init Containers : 03-init-containers.md
-4. Sidecar Containers : 04-sidecar-containers.md
-5. Ephemeral Containers : 05-ephemeral-containers.md
-6. Probes (liveness, readiness, startup) : 06-probes.md
-7. Disruptions : 07-disruptions.md
-8. Pod Hostname : 08-pod-hostname.md
-9. QoS Classes : 09-qos-classes.md
-10. Scheduling : 10-scheduling.md
-11. Static Pods : 11-static-pods.md (infra, hors fil rouge)
-12. User Namespaces : 12-user-namespaces.md
-13. Downward API : 13-downward-api.md
-14. Advanced Pod Configuration : 14-advanced-config.md
+## 1. L'image de l'API
 
-## Prerequis
+Le cluster tourne sous containerd. Une image construite en local n'est pas
+visible par le cluster. Le chemin le plus simple :
 
-- Un cluster (minikube ou kind conviennent), kubectl configure.
-- L'image demo-api:1.0 construite et disponible pour le cluster.
-  Avec minikube : `eval $(minikube docker-env) && docker build -t demo-api:1.0 .`
-  Avec kind : `kind load docker-image demo-api:1.0`
+Une fois, depuis TA machine (pas dans Killercoda) :
 
-## Deploiement complet
+    docker build -t TON_COMPTE/demo-api:1.0 .
+    docker push TON_COMPTE/demo-api:1.0
 
-    kubectl apply -f k8s/
-    kubectl get pod -n demo -w
+Ensuite, dans chaque session Killercoda, l'image est simplement tiree depuis
+Docker Hub. Rien a reconstruire.
 
-## Honnetete sur la portee
+## 2. Le stockage
 
-Les notions 11 (Static Pods) et, en partie, 12 (User Namespaces) sont de
-l'infrastructure : elles ne se demontrent pas sur l'API elle-meme. Les labs
-correspondants se font sur le noeud ou exigent un cluster specifiquement
-configure. C'est signale dans chaque fichier.
+Le cluster est livre sans provisioner de stockage par defaut. Le PVC du
+StatefulSet Postgres resterait bloque en Pending. Le script installe donc
+le local-path-provisioner de Rancher et le definit comme StorageClass par
+defaut, ce qui garde le StatefulSet intact.
+
+Si l'installation du provisioner echoue (pas d'acces reseau, par exemple),
+bascule sur la variante emptyDir avec l'option `USE_EMPTYDIR=true`.
+
+## Lancement
+
+    git clone <ton-repo>
+    cd demo-app
+    IMAGE=TON_COMPTE/demo-api:1.0 ./killercoda/setup.sh
+
+Variante sans provisioner (Postgres en emptyDir) :
+
+    IMAGE=TON_COMPTE/demo-api:1.0 USE_EMPTYDIR=true ./killercoda/setup.sh
+
+## Bon a savoir
+
+- La session dure 60 minutes et ne survit pas a un rafraichissement de page.
+  Tout est scripte pour etre rejoue vite.
+- La variante emptyDir sacrifie l'identite reseau stable du StatefulSet :
+  le lab Pod Hostname se fait alors sur la version StatefulSet (mode par
+  defaut), pas sur cette variante.
+- Les labs 11 (Static Pods) et 12 (User Namespaces) restent de
+  l'infrastructure et se traitent sur le noeud, comme indique dans `labs/`.

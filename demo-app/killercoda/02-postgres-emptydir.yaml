@@ -1,0 +1,59 @@
+# Variante Killercoda de secours : Postgres en Deployment + emptyDir.
+# A utiliser si le provisioner de stockage n'est pas disponible
+# (option USE_EMPTYDIR=true du setup.sh).
+# Compromis assume : on perd l'identite reseau stable du StatefulSet.
+# Le lab Pod Hostname se fait alors sur le StatefulSet ailleurs, pas ici.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: demo
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef: { name: demo-db, key: username }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: demo-db, key: password }
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef: { name: demo-db, key: dbname }
+          # QoS Guaranteed conservee : requests == limits.
+          resources:
+            requests: { cpu: "250m", memory: "256Mi" }
+            limits: { cpu: "250m", memory: "256Mi" }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        # emptyDir : donnees perdues a la suppression du Pod.
+        # Sans importance pour un lab d'une heure.
+        - name: data
+          emptyDir: {}
