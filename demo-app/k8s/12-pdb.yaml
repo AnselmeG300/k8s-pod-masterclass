@@ -1,0 +1,15 @@
+# PodDisruptionBudget : encadre les disruptions VOLONTAIRES (drain de
+# noeud, mise a jour du cluster). Kubernetes refusera d'evacuer un Pod
+# si cela fait passer le nombre de Pods disponibles sous minAvailable.
+# Avec 2 replicas et minAvailable 1, les deux ne peuvent pas etre
+# evacues en meme temps : le service reste debout pendant la maintenance.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: demo-api
+  namespace: demo
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: demo-api

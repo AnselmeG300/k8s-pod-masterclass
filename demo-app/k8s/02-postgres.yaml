@@ -1,0 +1,68 @@
+# Service headless (clusterIP None) : donne a chaque Pod du StatefulSet
+# une identite DNS stable (postgres-0.postgres.demo.svc). C'est le point
+# d'accroche de la notion Pod Hostname : une base a besoin d'un nom reseau
+# stable, contrairement a l'API qui est derriere un Service classique.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: demo
+spec:
+  clusterIP: None
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: demo
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef: { name: demo-db, key: username }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: demo-db, key: password }
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef: { name: demo-db, key: dbname }
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          # QoS Guaranteed : requests == limits sur CPU ET memoire.
+          # La base est la ressource la plus critique, on la protege
+          # de l'eviction en cas de pression memoire sur le noeud.
+          resources:
+            requests: { cpu: "250m", memory: "256Mi" }
+            limits: { cpu: "250m", memory: "256Mi" }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  # Necessite une StorageClass par defaut (minikube et kind en fournissent une).
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
